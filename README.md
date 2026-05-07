@@ -12,6 +12,7 @@ The EA waits for several price action signals to agree with the current EMA tren
 | --- | --- |
 | `Experts/XAUUSD_PriceAction_Confluence_EA.mq5` | The MetaTrader 5 Expert Advisor source code. |
 | `data/XAUUSD_M1_sample.csv` | Sample M1 XAUUSD bar data for importing into MT5/custom-symbol testing. |
+| `scripts/validate_package.py` | Lightweight package validator for the EA source and sample data. |
 
 ## Strategy overview
 
