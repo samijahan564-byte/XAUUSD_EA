@@ -13,6 +13,61 @@ The EA waits for several price action signals to agree with the current EMA tren
 | `Experts/XAUUSD_PriceAction_Confluence_EA.mq5` | The MetaTrader 5 Expert Advisor source code. |
 | `data/XAUUSD_M1_sample.csv` | Sample M1 XAUUSD bar data for importing into MT5/custom-symbol testing. |
 | `scripts/validate_package.py` | Lightweight package validator for the EA source and sample data. |
+| `scripts/ict_signal_analyzer.py` | Standalone ICT / Smart Money signal analyzer (Python). |
+| `scripts/test_ict_signal_analyzer.py` | Tests for the ICT signal analyzer. |
+
+## ICT / Smart Money Signal Analyzer
+
+`scripts/ict_signal_analyzer.py` is a standalone Python script that analyzes XAUUSD M1 OHLC+Volume data using ICT (Inner Circle Trader) / Smart Money concepts and outputs a single JSON trade signal.
+
+### Ten analysis layers
+
+1. **Market Structure** — BOS (Break of Structure) and CHOCH (Change of Character) from swing highs/lows.
+2. **Order Blocks** — Last opposing candle before an impulse move, validated by above-average volume.
+3. **Liquidity & Stop Hunt** — Detects price sweeping previous highs/lows then reversing.
+4. **Fair Value Gap (FVG)** — Three-candle imbalance zones with premium/discount filtering.
+5. **Multi-Timeframe Confirmation** — 1M candles aggregated to 5M; 5M EMA trend must align with 1M entry.
+6. **Candlestick Patterns** — Pin Bar, Engulfing, Hammer, Shooting Star detection.
+7. **EMA & Momentum** — Short (9) and mid (21) EMA trend alignment, strong body, volume check.
+8. **Session Filter** — Only signals during London (07–16 UTC) or New York (12–21 UTC) sessions.
+9. **Risk Management** — SL behind last valid swing high/low with buffer; TP at minimum 1:2 R:R.
+10. **Multi-Candle Confirmation** — Last 5 candles must align with direction, EMA, and momentum.
+
+A trade signal is generated only when at least 4 layers confirm the same direction and no layer contradicts.
+
+### Running the analyzer
+
+```bash
+# Default: reads data/XAUUSD_M1_sample.csv
+python3 scripts/ict_signal_analyzer.py
+
+# Custom CSV file
+python3 scripts/ict_signal_analyzer.py path/to/candles.csv
+
+# Read from stdin
+cat candles.csv | python3 scripts/ict_signal_analyzer.py -
+
+# Verbose diagnostics (logged to stderr, does not affect JSON output)
+python3 scripts/ict_signal_analyzer.py --verbose
+```
+
+### Output format
+
+```json
+{"signal": "BUY", "entry": 2338.30, "SL": 2336.50, "TP": 2341.90}
+```
+
+If conditions are not met:
+
+```json
+{"signal": "NO TRADE", "entry": 0, "SL": 0, "TP": 0}
+```
+
+### Running the tests
+
+```bash
+cd scripts && python3 test_ict_signal_analyzer.py
+```
 
 ## Strategy overview
 
