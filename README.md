@@ -13,6 +13,8 @@ The EA waits for several price action signals to agree with the current EMA tren
 | `Experts/XAUUSD_PriceAction_Confluence_EA.mq5` | The MetaTrader 5 Expert Advisor source code. |
 | `data/XAUUSD_M1_sample.csv` | Sample M1 XAUUSD bar data for importing into MT5/custom-symbol testing. |
 | `scripts/validate_package.py` | Lightweight package validator for the EA source and sample data. |
+| `scripts/ict_signal.py` | Smart Money / ICT signal analyzer that prints a strict JSON BUY/SELL/NO TRADE decision. |
+| `scripts/test_ict_signal.py` | Synthetic-scenario tests for the ICT signal analyzer. |
 
 ## Strategy overview
 
@@ -201,6 +203,64 @@ Avoid optimizing only for profit. Also check drawdown, number of trades, average
    - Broker minimum lot and stop-level rules.
    - `InpMaxOpenTrades`.
    - Whether the symbol name in `InpTradeSymbol` matches your broker.
+
+## Smart Money / ICT signal analyzer (`scripts/ict_signal.py`)
+
+`scripts/ict_signal.py` is a standalone Python tool that consumes XAUUSD OHLC + volume candles (treated as M1) and prints **exactly one JSON object** describing the trade decision. It is independent of the MT5 EA and can be used to drive bots, alerting, or research notebooks.
+
+### Output format (strict)
+
+```
+{"signal": "BUY" | "SELL" | "NO TRADE", "entry": <price>, "SL": <price>, "TP": <price>}
+```
+
+When no setup is found, all three prices are `0`. Stdout contains only this single JSON line; diagnostics go to stderr behind `--debug`.
+
+### Rule layers
+
+The analyzer enforces all ten layers requested by the SMC/ICT prompt:
+
+1. **Market structure** – fractal swing detection plus BOS/CHOCH bias.
+2. **Order blocks** – last opposing candle before an impulse, validated by relative volume / body size.
+3. **Liquidity sweep** – wick beyond a recent swing high/low that closes back inside.
+4. **Fair Value Gap** – three-bar imbalance scan for a fresh same-direction FVG.
+5. **Multi-timeframe** – trend confirmed on aggregated M5; M1 must not contradict.
+6. **Candle patterns** – pin bar, engulfing, hammer, shooting star aligned with the trend.
+7. **EMA + momentum + volume** – EMA(9) and EMA(21) alignment with positive slope, last-bar body ≥ 45 % of range, and volume ≥ 1.10 × recent average.
+8. **Session filter** – signals only inside London (07:00–16:00 UTC) or New York (12:00–21:00 UTC).
+9. **Risk management** – SL behind the last valid swing extreme + ATR buffer, TP at R:R ≥ 1:2.
+10. **Multi-candle alignment** – the last 3 candles must all agree with the trend.
+
+If *any* layer contradicts the M5 trend, the result is `NO TRADE`.
+
+### Usage
+
+```bash
+# MT5 9-column CSV: Date,Time,O,H,L,C,TickVol,Volume,Spread
+python3 scripts/ict_signal.py --csv data/XAUUSD_M1_sample.csv
+
+# JSON array on stdin
+cat candles.json | python3 scripts/ict_signal.py --json -
+
+# Inline JSON
+python3 scripts/ict_signal.py --json '[{"time":"2026-05-01T09:00","open":2300, ...}]'
+
+# Custom Risk:Reward and rounding
+python3 scripts/ict_signal.py --csv data.csv --rr 3 --digits 2
+
+# See which layer rejected the setup
+python3 scripts/ict_signal.py --csv data.csv --debug
+```
+
+JSON candles must have keys `open`, `high`, `low`, `close`, and (optionally) `time`, `volume`. Without timestamps the session filter defaults to "active".
+
+### Tests
+
+```bash
+python3 scripts/test_ict_signal.py
+```
+
+Covers a synthetic bullish confluence (expect `BUY`), a synthetic bearish confluence (expect `SELL`), a flat range, and an out-of-session bullish setup (both expect `NO TRADE`), and verifies the CLI emits exactly one JSON line.
 
 ## Practical safety checklist
 
